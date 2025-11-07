@@ -1,0 +1,5 @@
+PyMuPDF
+openai==1.108.1
+fastapi
+uvicorn
+python-multipart

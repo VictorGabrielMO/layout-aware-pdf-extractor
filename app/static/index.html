@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Document Extraction</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Document Extraction</h1>
+    <form id="upload-form">
+      <label>PDF File:</label>
+      <input type="file" id="pdf" name="pdf" accept="application/pdf" required>
+
+      <label>Label:</label>
+      <input type="text" id="label" name="label" value="carteira_oab" required>
+
+      <label>Schema (JSON):</label>
+      <textarea id="schema" name="schema_json" rows="5" required>
+{
+  "nome": "Nome do profissional",
+  "inscricao": "Número de inscrição",
+  "seccional": "Seccional do profissional"
+}
+      </textarea>
+
+      <button type="submit">Run Extraction</button>
+    </form>
+
+    <div id="output"></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
