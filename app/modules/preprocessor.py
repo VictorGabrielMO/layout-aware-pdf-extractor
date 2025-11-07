@@ -1,41 +1,5 @@
 import re
-from typing import Dict, Any, List
-from openai import OpenAI
-
-
-class Preprocessor:
-    """
-    Normaliza e estrutura os blocos de texto do PDF,
-    preparando o contexto e o prompt para o LLM.
-    Também é responsável por reduzir custo (enviar só blocos relevantes).
-    """
-    
-    @staticmethod
-    def normalize_block_text(text: str) -> str:
-        """
-        Limpa e padroniza o texto dos blocos.
-        """
-        text = text.strip()
-        text = re.sub(r"\s+", " ", text)
-        return text
-
-    @staticmethod
-    def preprocess_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Limpa e ordena os blocos de texto por posição vertical.
-        """
-        cleaned = []
-        for b in blocks:
-            if b["text"].strip():
-                cleaned.append({
-                    "text": Preprocessor.normalize_block_text(b["text"]),
-                    "bbox": b["bbox"]
-                })
-        # Ordena por posição Y (ordem de leitura)
-        cleaned.sort(key=lambda x: x["bbox"][1])
-        return cleaned
-
-    from typing import List, Dict, Any
+from typing import List, Dict, Any
 
 class Preprocessor:
     @staticmethod

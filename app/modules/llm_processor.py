@@ -52,46 +52,6 @@ Schema:
 		return prompt.strip()
 
 	@staticmethod
-	def build_simple_prompt(cleaned_blocks: List[Dict[str, Any]], label: str, schema: Dict[str, str]) -> str:
-		"""
-		Constrói um prompt simplificado (sem regex).
-		"""
-		blocks_text = "\n".join(
-			f"{i+1}. \"{b['text']}\"" for i, b in enumerate(cleaned_blocks)
-		)
-		schema_json = json.dumps(schema, ensure_ascii=False, indent=2)
-
-		prompt = f"""
-Você é um extrator de informações estruturadas em documentos.
-
-Você receberá os blocos enumerados de um documento e o rótulo desse documento, que indica ao que o documento se refere.
-Receberá também um schema que indica as informações a serem extraídas.
-
-Para cada campo do schema, retorne:
-- "valor": o valor extraído deste PDF.
-- "bloco": indica o número do bloco em que o valor foi extraído.
-
-Responda em JSON no formato:
-{{
-  "campo": {{
-    "valor": "...",
-    "bloco": "..."
-  }}
-}}
-
-Label:
-{label}
-
-Blocos:
-{blocks_text}
-Obs: Os blocos estão ordenados por sua posição de cima para baixo, da esquerda para a direita.
-
-Schema:
-{schema_json}
-"""
-		return prompt.strip()
-
-	@staticmethod
 	def call_llm(prompt: str, openai_client: OpenAI) -> Dict[str, Any]:
 		"""
 		Chama o modelo LLM para gerar os valores e regexes (ou apenas valores).

@@ -152,24 +152,6 @@ class LayoutMemory:
                 return block_idx, block
         return None
     
-    def get_schema_with_regex_existance_indication(self, schema, label):
-        """
-        Returns the schame
-        
-        Returns:
-            dict[field_name -> {"descricao": "..." , "extract_regex": Bool}]
-        """
-        result = {}
-
-        for field in schema.keys():
-            regex = self._get_regex_from_db(label, field)
-            result[field] = {
-                "descrição": schema[field],
-                "extrair_regex": True if not regex else False
-            }
-                
-        return result
-    
     def layout_memory_search(self, label: str, schema, blocks):
         """
         Attempts to extract field values for a given document label using stored
