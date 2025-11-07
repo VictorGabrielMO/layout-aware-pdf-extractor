@@ -45,9 +45,58 @@ Para cada campo, é calculado um **intervalo de confiança (IC)** das posições
 - Se o intervalo é **estreito (alta confiança)** e o número de amostras é suficiente, assume-se que o campo é **posicionalmente estável**.
 - Assim, é possível identificar diretamente o bloco correspondente **sem consultar o LLM**.
 
+## 🔍 Como o Matching é Feito no Layout Memory
+
+O método `layout_memory_search()` realiza o processo de correspondência (“matching”) entre os **campos esperados** e os **blocos de texto** do documento com base em duas heurísticas complementares: **posição** e **regex**.
+
+### 1️⃣ Verificação de posição (Confidence Interval Matching)
+
+Para cada campo definido no esquema (`schema`), o sistema recupera o **intervalo de confiança (IC)** das posições médias (`px`, `py`) armazenadas anteriormente.  
+Esses valores representam onde, em média, aquele campo costuma aparecer no layout do documento.
+
+O método procura entre os blocos (`blocks`) um cujo ponto (`px`, `py`) esteja dentro de um intervalo de confiançã **significativo**:
+
+\[
+IC_{px} = \bar{px} \pm z \cdot \frac{\sigma_{px}}{\sqrt{n}}
+\]
+\[
+IC_{py} = \bar{py} \pm z \cdot \frac{\sigma_{py}}{\sqrt{n}}
+\]
+
+Se um bloco se encaixa nessa região, ele é considerado **candidato** para aquele campo.
+
+---
+
+### 2️⃣ Verificação de regex (Regex Matching)
+
+Em seguida, o método busca no banco de dados se já existe um **regex aprendido** anteriormente para o campo.  
+Caso exista, ele é aplicado sobre o texto do bloco candidato:
+
+```python
+regex_match = re.search(regex, block_data["text"], flags=re.MULTILINE)
+```
+
+Se o regex encontrar uma correspondência, o valor é extraído e o campo é adicionado a `llm_avoided_fields`, indicando que não foi necessário chamar o LLM para obtê-lo.
+
+---
+
+### 3️⃣ Fallback para o LLM
+
+Se não for encontrado nenhum bloco candidato (fora do IC) ou o regex falhar, o campo é adicionado a `llm_fallback_fields`.  
+Esses campos serão enviados ao modelo LLM, que extrairá o valor e poderá **gerar um novo regex** e **atualizar a posição média** daquele campo para futuras execuções.
+
+---
+
+Em resumo:
+- **Posição →** garante que apenas blocos prováveis sejam testados.  
+- **Regex →** valida o conteúdo textual dentro desses blocos.  
+- **LLM →** é acionado apenas quando a heurística falha, alimentando novamente a memória.
+
+
 Essa heurística reduz drasticamente o custo das inferências:
-- Os primeiros documentos de cada tipo demandam chamadas ao LLM (pois é necessário obter os regexes para os campos do documento);
-- Após a obtenção dos regexes para os campos, a depender da distribuição das posições dos blocos de texto do campo, podemos extrair os dados de forma **quase instantânea**.
+- Os primeiros documentos de cada tipo demandam chamadas custosas ao LLM (pois é necessário obter os regexes para os campos do documento);
+- Após obtidos os regexes para os campos, o custo da chamada ao LLM reduz drasticamente, devido à complexidade envolvida na obtenção dos regexes.
+- Após a obtenção da distribuição das posições dos blocos de texto do campo, podemos extrair os dados de forma **quase instantânea** para campos com elevado grau de regularidade em sua posição.
 
 ##### 🌐 Significância e decisão de fallback
 O sistema classifica cada campo como:
