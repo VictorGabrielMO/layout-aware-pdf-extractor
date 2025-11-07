@@ -82,7 +82,7 @@ Para acelerar ainda mais, há um **cache persistente para a tupla (texto do docu
 | **LRU caching interno** | Minimiza acesso ao banco SQLite. | Diminui latência de consultas repetidas. |
 
 💡 **Tendência natural de desempenho:**  
-As primeiras requisições de um tipo de documento serão lentas (dependência do LLM), mas o sistema convergirá rapidamente para tempo de execução muito baixo conforme acumula conhecimento.
+As primeiras requisições de um tipo de documento serão lentas (Extração de regexes pelo LLM é custusa), mas o sistema convergirá rapidamente para tempo de execução baixo conforme acumula conhecimento.
 
 ---
 
