@@ -11,7 +11,7 @@ A arquitetura foi desenhada para que o modelo de linguagem seja acionado **apena
 
 ---
 
-### ⚙️ Pipeline de Processamento
+## ⚙️ Pipeline de Processamento
 
 A pipeline é composta pelas seguintes etapas principais:
 
@@ -26,24 +26,24 @@ A pipeline é composta pelas seguintes etapas principais:
 - A saída é uma lista de blocos prontos para serem analisados pela heurística de layout.
 
 #### 3. **Memória de Layout (LayoutMemory)**
-Essa é a **camada central de inteligência** da solução.
+Essa é a **camada central de inteligência** da solução. Uma descrição detalhada será fornecida na seção abaixo.
 
-- Cada campo de cada tipo de documento é armazenado com:
-  - As **coordenadas médias (px, py)** em que o campo aparece.
-  - As **variâncias acumuladas (M2_px, M2_py)**.
-  - Um **regex aprendido** pelo LLM, usado para extrações diretas futuras.
-- Os valores são atualizados incrementalmente com o **algoritmo de Welford**, o que garante médias e variâncias corretas sem reprocessar o histórico.
+#### 4. **LLM Processor**
+- Quando a memória de layout não é suficiente, o pipeline constrói um *prompt contextualizado* e envia ao LLM.
+- O modelo retorna:
+  - `valor` extraído
+  - `regex` usado para encontrá-lo (Caso uma chamada anterior já não houver obtido o regex para o campo analisado)
+  - `indice do bloco de origem` usado na atualização da media e variância do campo
 
-##### 🧠 Heurística de Intervalo de Confiança (CI)
-Para cada campo, é calculado um **intervalo de confiança (IC)** das posições:
+#### 5. **Cache de resultados (document-level cache)**
+Para acelerar ainda mais, há um **cache persistente para a tupla (texto do documento,label, campo)**:
+- É gerado um *fingerprint SHA256*.
+- Se uma requisição idêntica já foi processado, o resultado é retornado diretamente sem nova análise.
 
-![equation](https://latex.codecogs.com/svg.image?IC_{px}=\bar{px}\pm%20z\cdot\frac{\sigma_{px}}{\sqrt{n}})
-
-![equation](https://latex.codecogs.com/svg.image?IC_{py}=\bar{py}\pm%20z\cdot\frac{\sigma_{py}}{\sqrt{n}})
+---
 
 
-- Se o intervalo é **estreito (alta confiança)** e o número de amostras é suficiente, assume-se que o campo é **posicionalmente estável**.
-- Assim, é possível identificar diretamente o bloco correspondente **sem consultar o LLM**.
+
 
 ## 🔍 Como o Matching é Feito no Layout Memory
 
@@ -54,18 +54,30 @@ O método `layout_memory_search()` realiza o processo de correspondência (“ma
 Para cada campo definido no esquema (`schema`), o sistema recupera o **intervalo de confiança (IC)** das posições médias (`px`, `py`) armazenadas anteriormente.  
 Esses valores representam onde, em média, aquele campo costuma aparecer no layout do documento.
 
-O método procura entre os blocos (`blocks`) um cujo ponto (`px`, `py`) esteja dentro de um intervalo de confiançã **significativo**:
+O método procura entre os blocos de texto extraídos do documento (`blocks`) um cujo ponto (`px`, `py`) esteja dentro de um intervalo de confiança **significativo**:
 
-\[
-IC_{px} = \bar{px} \pm z \cdot \frac{\sigma_{px}}{\sqrt{n}}
-\]
-\[
-IC_{py} = \bar{py} \pm z \cdot \frac{\sigma_{py}}{\sqrt{n}}
-\]
+![IC_px](https://latex.codecogs.com/png.latex?IC_%7Bpx%7D%20%3D%20%5Cbar%7Bpx%7D%20%5Cpm%20z%20%5Ccdot%20%5Cfrac%7B%5Csigma_%7Bpx%7D%7D%7B%5Csqrt%7Bn%7D%7D)
 
-Se um bloco se encaixa nessa região, ele é considerado **candidato** para aquele campo.
+![IC_py](https://latex.codecogs.com/png.latex?IC_%7Bpy%7D%20%3D%20%5Cbar%7Bpy%7D%20%5Cpm%20z%20%5Ccdot%20%5Cfrac%7B%5Csigma_%7Bpy%7D%7D%7B%5Csqrt%7Bn%7D%7D)
+
+
+Se um bloco se encaixa nessa região, ele é considerado um **match** para aquele campo.
+
+Assim, é possível identificar diretamente o bloco correspondente **sem consultar o LLM**.
 
 ---
+
+##### 🌐 Significância dos Intervalos de Confiança
+O sistema classifica cada campo como, baseado no tamamanho do intervalo e no número de amostras:
+- `high` → coordenadas altamente confiáveis (dispensa LLM);
+- `medium` → coordenadas moderadamente estáveis;
+- `low` → instável, depende do LLM;
+
+Se o intervalo é **estreito (alta confiança)** e o número de amostras é suficientemente grande, assume-se que o campo é **posicionalmente estável**.
+
+Observação: Vale salientar que, embora promissora, a abordagem é heurística e ainda demanda ajustes e testes empíricos 
+para ajustar, sobretudo, a avaliação de hyperparâmetros para definir a significância do Intervalo de Confiança. Pretendo ainda explorar isso.
+
 
 ### 2️⃣ Verificação de regex (Regex Matching)
 
@@ -98,29 +110,6 @@ Essa heurística reduz drasticamente o custo das inferências:
 - Após obtidos os regexes para os campos, o custo da chamada ao LLM reduz drasticamente, devido à complexidade envolvida na obtenção dos regexes.
 - Após a obtenção da distribuição das posições dos blocos de texto do campo, podemos extrair os dados de forma **quase instantânea** para campos com elevado grau de regularidade em sua posição.
 
-##### 🌐 Significância e decisão de fallback
-O sistema classifica cada campo como:
-- `high` → coordenadas altamente confiáveis (dispensa LLM);
-- `medium` → coordenadas moderadamente estáveis (uso híbrido);
-- `low` → instável, depende do LLM.
-
-Observação: Vale salientar que, embora promissora, a abordagem é heurística e ainda demanda ajustes e testes empíricos 
-para ajustar, sobretudo, a avaliação de hyperparâmetros para definir a significância do Intervalo de Confiança. Pretendo ainda explorar isso.
-
-#### 4. **LLM Processor**
-- Quando a memória de layout não é suficiente, o pipeline constrói um *prompt contextualizado* e envia ao LLM.
-- O modelo retorna:
-  - `valor` extraído
-  - `regex` usado para encontrá-lo (Caso uma chamada anterior já não houver obtido o regex para o campo analisado)
-  - `indice do bloco de origem` usado na atualização da media e variância do campo
-
-#### 5. **Cache de resultados (document-level cache)**
-Para acelerar ainda mais, há um **cache persistente para a tupla (texto do documento,label, campo)**:
-- É gerado um *fingerprint SHA256*.
-- Se uma requisição idêntica já foi processado, o resultado é retornado diretamente sem nova análise.
-
----
-
 ### 📉 Otimizações de Desempenho
 
 | Técnica | Descrição | Impacto |
@@ -141,7 +130,7 @@ As primeiras requisições de um tipo de documento serão lentas (Extração de 
 2. LayoutMemory ainda vazio → tudo vai para o LLM.  
 3. LLM retorna valores + regex + posições.  
 4. Sistema atualiza memória com média, variância e regex.  
-5. Eventualmente, após a população do LayoutMemory (Idealmente):  
+5. Eventualmente, após a população do LayoutMemory (Considerando documento com elevada regularidade):  
    - Blocos são casados via IC e regex.  
    - Somente campos não encontrados vão ao LLM.  
 
