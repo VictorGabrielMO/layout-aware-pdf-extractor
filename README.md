@@ -37,18 +37,16 @@ Essa é a **camada central de inteligência** da solução.
 ##### 🧠 Heurística de Intervalo de Confiança (CI)
 Para cada campo, é calculado um **intervalo de confiança (IC)** das posições:
 
-\[
-IC_{px} = \bar{px} \pm z \cdot \frac{\sigma_{px}}{\sqrt{n}}
-\]
-\[
-IC_{py} = \bar{py} \pm z \cdot \frac{\sigma_{py}}{\sqrt{n}}
-\]
+![equation](https://latex.codecogs.com/svg.image?IC_{px}=\bar{px}\pm%20z\cdot\frac{\sigma_{px}}{\sqrt{n}})
+
+![equation](https://latex.codecogs.com/svg.image?IC_{py}=\bar{py}\pm%20z\cdot\frac{\sigma_{py}}{\sqrt{n}})
+
 
 - Se o intervalo é **estreito (alta confiança)** e o número de amostras é suficiente, assume-se que o campo é **posicionalmente estável**.
 - Assim, é possível identificar diretamente o bloco correspondente **sem consultar o LLM**.
 
 Essa heurística reduz drasticamente o custo das inferências:
-- Os primeiros documentos de cada tipo demandam chamadas ao LLM (pois é necessário aprender os regexes e coordenadas);
+- Os primeiros documentos de cada tipo demandam chamadas ao LLM (pois é necessário obter os regexes);
 - As execuções seguintes reutilizam o conhecimento armazenado, tornando o processo **quase instantâneo**.
 
 ##### 🌐 Significância e decisão de fallback
@@ -57,18 +55,20 @@ O sistema classifica cada campo como:
 - `medium` → coordenadas moderadamente estáveis (uso híbrido);
 - `low` → instável, depende do LLM.
 
+Observação: Vale salientar que, embora promissora, a abordagem é heurística e ainda demanda ajustes e testes empíricos 
+para ajustar, sobretudo, a avaliação de hyperparâmetros para definir a significância do Intervalo de Confiança. Pretendo ainda explorar isso.
+
 #### 4. **LLM Processor**
 - Quando a memória de layout não é suficiente, o pipeline constrói um *prompt contextualizado* e envia ao LLM.
 - O modelo retorna:
   - `valor` extraído
-  - `regex` usado para encontrá-lo
-  - `bloco` de origem
-- O regex e posição são armazenados na memória para futuros usos.
+  - `regex` usado para encontrá-lo (Caso uma chamada anterior já não houver obtido o regex para o campo analisado)
+  - `indice do bloco de origem` usado na atualização da media e variância do campo
 
 #### 5. **Cache de resultados (document-level cache)**
-Para acelerar ainda mais, há um **cache persistente por documento e schema**:
-- É gerado um *fingerprint SHA256* do texto e schema.
-- Se um documento idêntico já foi processado, o resultado é retornado diretamente sem nova análise.
+Para acelerar ainda mais, há um **cache persistente para a tupla (texto do documento,label, campo)**:
+- É gerado um *fingerprint SHA256*.
+- Se uma requisição idêntica já foi processado, o resultado é retornado diretamente sem nova análise.
 
 ---
 
@@ -92,7 +92,7 @@ As primeiras requisições de um tipo de documento serão lentas (dependência d
 2. LayoutMemory ainda vazio → tudo vai para o LLM.  
 3. LLM retorna valores + regex + posições.  
 4. Sistema atualiza memória com média, variância e regex.  
-5. Próximos documentos similares:  
+5. Eventualmente, após a população do LayoutMemory (Idealmente):  
    - Blocos são casados via IC e regex.  
    - Somente campos não encontrados vão ao LLM.  
 
@@ -109,6 +109,56 @@ Resultado: **redução progressiva do custo por documento.**
 - **Docker** — empacotamento e execução isolada
 
 ---
+
+## 🚀 Como Executar a Aplicação
+
+### 🐳 Executando com Docker (recomendado)
+
+A maneira mais simples de rodar a aplicação é usando o Docker.  
+Basta garantir que você tenha o Docker instalado e executar os comandos abaixo:
+
+```bash
+# 1. Clone o repositório
+git clone https://github.com/VictorGabrielMO/layout-aware-pdf-extractor.git
+cd layout-aware-pdf-extractor
+
+# 2. Crie a imagem Docker
+docker build -t doc-extraction .
+
+# 3. Rode o container
+docker run -p 8000:8000 -e OPENAI_API_KEY=<sua_chave_openai> doc-extraction
+
+```
+Após a inicialização, basta acessar a **interface gráfica** em:  
+👉 [http://localhost:8000](http://localhost:8000)
+
+A interface permite enviar um PDF, informar o rótulo do documento e fornecer o esquema JSON para extração dos campos.
+
+---
+
+## 📡 Endpoint de Extração
+
+Além da interface gráfica, a API também disponibiliza o endpoint:
+
+```
+POST /extract
+```
+
+### Parâmetros esperados (multipart/form-data)
+
+| Campo        | Tipo         | Descrição |
+|---------------|---------------|------------|
+| `pdf`         | `file`        | Arquivo PDF a ser processado |
+| `label`       | `string`      | Tipo de documento (ex: "nota_fiscal", "contrato") |
+| `schema_json` | `string` (JSON) | Estrutura com os campos esperados e suas descrições |
+
+### Exemplo de requisição `curl`:
+```bash
+curl -X POST http://localhost:8000/extract \
+  -F "pdf=@exemplo.pdf" \
+  -F "label=nota_fiscal" \
+  -F 'schema_json={"CNPJ":"Número do CNPJ da empresa","Data":"Data de emissão"}'
+```
 
 ### 📊 Considerações Finais
 
