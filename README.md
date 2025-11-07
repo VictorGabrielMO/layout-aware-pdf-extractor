@@ -46,8 +46,8 @@ Para cada campo, é calculado um **intervalo de confiança (IC)** das posições
 - Assim, é possível identificar diretamente o bloco correspondente **sem consultar o LLM**.
 
 Essa heurística reduz drasticamente o custo das inferências:
-- Os primeiros documentos de cada tipo demandam chamadas ao LLM (pois é necessário obter os regexes);
-- As execuções seguintes reutilizam o conhecimento armazenado, tornando o processo **quase instantâneo**.
+- Os primeiros documentos de cada tipo demandam chamadas ao LLM (pois é necessário obter os regexes para os campos do documento);
+- Após a obtenção dos regexes para os campos, a depender da distribuição das posições dos blocos de texto do campo, podemos extrair os dados de forma **quase instantânea**.
 
 ##### 🌐 Significância e decisão de fallback
 O sistema classifica cada campo como:
